@@ -1,61 +1,126 @@
 import streamlit as st
 import cv2
 import numpy as np
-from modules.face_utils import get_embedding
-from modules.auth import register_user, authenticate_user
 
-st.title("🔐 DeepFace Biometric Login System")
+from modules.face_utils import get_embedding, is_real_face
+from modules.auth import register_user, authenticate_user, get_top_matches
+from modules.history import log_attempt
+
+st.title("🔐 DeepFace Biometric Security System")
 
 menu = st.sidebar.selectbox("Menu", ["Register", "Login"])
 
-input_mode = st.radio("Choose input method", ["Camera", "Upload Image"])
+# ======================================================
+# 🧑 REGISTER (MULTIPLE IMAGES ONLY)
+# ======================================================
+if menu == "Register":
 
-image = None
+    st.subheader("🧑 User Registration")
 
-# 📸 CAMERA MODE
-if input_mode == "Camera":
-    img_file = st.camera_input("Take a picture")
+    username = st.text_input("Enter username")
 
-    if img_file:
-        file_bytes = np.asarray(bytearray(img_file.read()), dtype=np.uint8)
-        image = cv2.imdecode(file_bytes, 1)
+    uploaded_files = st.file_uploader(
+        "Upload 3–5 face images",
+        type=["jpg", "jpeg", "png"],
+        accept_multiple_files=True,
+    )
 
-# 📁 UPLOAD MODE
-else:
-    uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
+    if st.button("Register User"):
 
-    if uploaded_file is not None:
-        file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-        image = cv2.imdecode(file_bytes, 1)
+        if not username:
+            st.warning("Please enter username")
+            st.stop()
 
-# ---------------- PROCESS IMAGE ----------------
+        if not uploaded_files:
+            st.warning("Please upload at least 3 images")
+            st.stop()
 
-if image is not None:
-    embedding = get_embedding(image)
+        for file in uploaded_files:
 
-    if embedding is None:
-        st.error("No face detected!")
+            file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
+            image = cv2.imdecode(file_bytes, 1)
+
+            # 🚫 spoof check
+            blur_score = is_real_face(image)
+
+            st.write("Image quality score:", blur_score)
+
+            if blur_score < 10:
+                st.error("Image too blurry")
+                st.stop()
+
+            embedding = get_embedding(image)
+
+            if embedding is not None:
+                register_user(username, embedding)
+
+        st.success(f"User {username} registered successfully 🎉")
+
+# ======================================================
+# 🔐 LOGIN (CAMERA OR SINGLE IMAGE)
+# ======================================================
+elif menu == "Login":
+
+    st.subheader("🔐 Login System")
+
+    input_mode = st.radio("Choose input method", ["Upload Image", "Camera"])
+
+    image = None
+
+    # 📸 CAMERA
+    if input_mode == "Camera":
+        img_file = st.camera_input("Capture your face")
+
+        if img_file:
+            file_bytes = np.asarray(bytearray(img_file.read()), dtype=np.uint8)
+            image = cv2.imdecode(file_bytes, 1)
+
+    # 📁 UPLOAD
     else:
+        uploaded_file = st.file_uploader(
+            "Upload face image", type=["jpg", "jpeg", "png"]
+        )
 
-        # ========== REGISTER ==========
-        if menu == "Register":
-            username = st.text_input("Enter username")
+        if uploaded_file is not None:
+            file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+            image = cv2.imdecode(file_bytes, 1)
 
-            if st.button("Register"):
-                if username:
-                    register_user(username, embedding)
-                    st.success("User registered successfully!")
-                else:
-                    st.warning("Please enter a username")
+    # ==================================================
+    # PROCESS LOGIN IMAGE
+    # ==================================================
+    if image is not None:
 
-        # ========== LOGIN ==========
-        elif menu == "Login":
+        st.image(image, channels="BGR", caption="Input Image")
 
-            if st.button("Login"):
-                user, score = authenticate_user(embedding)
+        # 🚫 spoof detection
+        if not is_real_face(image):
+            st.error("🚫 Spoof detected! Please use a real face.")
+            st.stop()
 
-                if user:
-                    st.success(f"Welcome {user} 🎉")
-                    st.info(f"Similarity score: {score:.2f}")
-                else:
-                    st.error("Access Denied ❌")
+        embedding = get_embedding(image)
+
+        if embedding is None:
+            st.error("No face detected!")
+            st.stop()
+
+        if st.button("Login"):
+
+            # 📊 Top matches
+            st.subheader("📊 Top 3 Matches")
+
+            top_matches = get_top_matches(embedding)
+
+            for name, score in top_matches:
+                st.write(f"👤 {name}: {score:.2f}")
+                st.progress(float(score))
+
+            # 🔐 authentication
+            user, score = authenticate_user(embedding)
+
+            if user:
+                st.success(f"Welcome {user} 🎉")
+                st.info(f"Confidence Score: {score:.2f}")
+                log_attempt(user, "SUCCESS")
+            else:
+                st.error("Access Denied ❌")
+                log_attempt("UNKNOWN", "FAIL")
