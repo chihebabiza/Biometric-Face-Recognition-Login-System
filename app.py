@@ -111,18 +111,53 @@ with tab2:
 
         st.success("User registered successfully")
 
+    st.markdown("---")
+    st.subheader("➕ Add images to existing user")
+
+    users_list = list(load_users().keys())
+
+    if users_list:
+
+        selected_user = st.selectbox("Select user", users_list)
+
+        new_files = st.file_uploader(
+            "Upload new face images",
+            type=["jpg", "jpeg", "png"],
+            accept_multiple_files=True,
+            key="add_images",
+        )
+
+        if st.button("Add Images"):
+
+            if not new_files:
+                st.warning("Upload images")
+                st.stop()
+
+            for file in new_files:
+
+                file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
+                image = cv2.imdecode(file_bytes, 1)
+
+                if not is_real_face(image):
+                    continue
+
+                embedding = get_embedding(image)
+
+                if embedding is not None:
+                    add_user_images(selected_user, embedding)
+
+            st.success(f"Images added to {selected_user}")
+
+    else:
+        st.info("No users available")
 
 st.markdown("---")
 st.subheader("Logs")
 
 try:
-
     df = pd.read_csv("database/logs.csv")
-
     st.dataframe(df)
-
     st.bar_chart(df["status"].value_counts())
-
 except:
     st.info("No logs yet")
 
