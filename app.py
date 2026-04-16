@@ -1,6 +1,7 @@
 import streamlit as st
 import cv2
 import numpy as np
+import pandas as pd
 
 from modules.face_utils import get_embedding, is_real_face
 from modules.auth import (
@@ -14,87 +15,13 @@ from modules.database import load_users
 
 st.title("DeepFace Biometric Security System")
 
-menu = st.sidebar.selectbox("Menu", ["Register", "Login"])
+tab1, tab2 = st.tabs(["Login", "Register"])
 
-if menu == "Register":
-
-    st.subheader("User Registration")
-
-    username = st.text_input("Enter username")
-
-    uploaded_files = st.file_uploader(
-        "Upload 3–5 face images",
-        type=["jpg", "jpeg", "png"],
-        accept_multiple_files=True,
-    )
-
-    if st.button("Register User"):
-
-        if not username:
-            st.warning("Please enter username")
-            st.stop()
-
-        if not uploaded_files:
-            st.warning("Please upload at least 3 images")
-            st.stop()
-
-        for file in uploaded_files:
-
-            file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
-            image = cv2.imdecode(file_bytes, 1)
-
-            if not is_real_face(image):
-                continue
-
-            embedding = get_embedding(image)
-
-            if embedding is not None:
-                register_user(username, embedding)
-
-        st.success(f"User {username} registered successfully")
-
-    st.markdown("---")
-    st.subheader("Add images to existing user")
-
-    users_list = list(load_users().keys())
-
-    if users_list:
-
-        selected_user = st.selectbox("Select user", users_list)
-
-        new_files = st.file_uploader(
-            "Upload new face images",
-            type=["jpg", "jpeg", "png"],
-            accept_multiple_files=True,
-            key="add_images",
-        )
-
-        if st.button("Add Images to User"):
-
-            if not new_files:
-                st.warning("Please upload images")
-                st.stop()
-
-            for file in new_files:
-
-                file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
-                image = cv2.imdecode(file_bytes, 1)
-
-                embedding = get_embedding(image)
-
-                if embedding is not None:
-                    add_user_images(selected_user, embedding)
-
-            st.success(f"Images added to {selected_user}")
-
-    else:
-        st.info("No users registered yet")
-
-elif menu == "Login":
+with tab1:
 
     st.subheader("Login System")
 
-    input_mode = st.radio("Choose input method", ["Camera", "Upload Image"])
+    input_mode = st.radio("Choose input method", ["Upload Image", "Camera"])
 
     image = None
 
@@ -118,17 +45,17 @@ elif menu == "Login":
 
         st.image(image, channels="BGR")
 
-        if not is_real_face(image):
-            st.error("Spoof detected")
-            st.stop()
-
-        embedding = get_embedding(image)
-
-        if embedding is None:
-            st.error("No face detected")
-            st.stop()
-
         if st.button("Login"):
+
+            if not is_real_face(image):
+                st.error("Spoof detected")
+                st.stop()
+
+            embedding = get_embedding(image)
+
+            if embedding is None:
+                st.error("No face detected")
+                st.stop()
 
             top_matches = get_top_matches(embedding)
 
@@ -142,7 +69,90 @@ elif menu == "Login":
 
             if user:
                 st.success(f"Welcome {user}")
-                log_attempt(user, "SUCCESS")
+                log_attempt(user, "SUCCESS", score)
             else:
                 st.error("Access Denied")
-                log_attempt("UNKNOWN", "FAIL")
+                log_attempt("UNKNOWN", "FAIL", score)
+
+with tab2:
+
+    st.subheader("User Registration")
+
+    username = st.text_input("Enter username")
+
+    uploaded_files = st.file_uploader(
+        "Upload 3–5 face images",
+        type=["jpg", "jpeg", "png"],
+        accept_multiple_files=True,
+    )
+
+    if st.button("Register User"):
+
+        if not username:
+            st.warning("Enter username")
+            st.stop()
+
+        if not uploaded_files:
+            st.warning("Upload images")
+            st.stop()
+
+        for file in uploaded_files:
+
+            file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
+            image = cv2.imdecode(file_bytes, 1)
+
+            if not is_real_face(image):
+                continue
+
+            embedding = get_embedding(image)
+
+            if embedding is not None:
+                register_user(username, embedding)
+
+        st.success("User registered successfully")
+
+
+st.markdown("---")
+st.subheader("Logs")
+
+try:
+
+    df = pd.read_csv("database/logs.csv")
+
+    st.dataframe(df)
+
+    st.bar_chart(df["status"].value_counts())
+
+except:
+    st.info("No logs yet")
+
+st.markdown("---")
+st.subheader("Users Database")
+
+users = load_users()
+
+if users:
+    for u, v in users.items():
+        st.write(f"👤 {u} → {len(v)} samples")
+else:
+    st.info("No users")
+
+st.markdown("---")
+st.subheader("📈 Analytics")
+
+try:
+    df = pd.read_csv("database/logs.csv")
+
+    total = len(df)
+    success = len(df[df["status"] == "SUCCESS"])
+    fail = len(df[df["status"] == "FAIL"])
+
+    st.metric("Total", total)
+    st.metric("Success", success)
+    st.metric("Fail", fail)
+
+    if total > 0:
+        st.progress(success / total)
+
+except:
+    st.info("No data")
