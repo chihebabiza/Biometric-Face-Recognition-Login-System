@@ -58,3 +58,15 @@ def get_top_matches(embedding, top_k=3):
     scores.sort(key=lambda x: x[1], reverse=True)
 
     return scores[:top_k]
+
+
+def add_user_images(username, embedding):
+    users = load_users()
+
+    if username not in users:
+        return False
+
+    users[username].append(embedding)
+    save_users(users)
+
+    return True

@@ -3,19 +3,22 @@ import cv2
 import numpy as np
 
 from modules.face_utils import get_embedding, is_real_face
-from modules.auth import register_user, authenticate_user, get_top_matches
+from modules.auth import (
+    register_user,
+    authenticate_user,
+    get_top_matches,
+    add_user_images,
+)
 from modules.history import log_attempt
+from modules.database import load_users
 
-st.title("🔐 DeepFace Biometric Security System")
+st.title("DeepFace Biometric Security System")
 
 menu = st.sidebar.selectbox("Menu", ["Register", "Login"])
 
-# ======================================================
-# 🧑 REGISTER (MULTIPLE IMAGES ONLY)
-# ======================================================
 if menu == "Register":
 
-    st.subheader("🧑 User Registration")
+    st.subheader("User Registration")
 
     username = st.text_input("Enter username")
 
@@ -40,34 +43,61 @@ if menu == "Register":
             file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
             image = cv2.imdecode(file_bytes, 1)
 
-            # 🚫 spoof check
-            blur_score = is_real_face(image)
-
-            st.write("Image quality score:", blur_score)
-
-            if blur_score < 10:
-                st.error("Image too blurry")
-                st.stop()
+            if not is_real_face(image):
+                continue
 
             embedding = get_embedding(image)
 
             if embedding is not None:
                 register_user(username, embedding)
 
-        st.success(f"User {username} registered successfully 🎉")
+        st.success(f"User {username} registered successfully")
 
-# ======================================================
-# 🔐 LOGIN (CAMERA OR SINGLE IMAGE)
-# ======================================================
+    st.markdown("---")
+    st.subheader("Add images to existing user")
+
+    users_list = list(load_users().keys())
+
+    if users_list:
+
+        selected_user = st.selectbox("Select user", users_list)
+
+        new_files = st.file_uploader(
+            "Upload new face images",
+            type=["jpg", "jpeg", "png"],
+            accept_multiple_files=True,
+            key="add_images",
+        )
+
+        if st.button("Add Images to User"):
+
+            if not new_files:
+                st.warning("Please upload images")
+                st.stop()
+
+            for file in new_files:
+
+                file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
+                image = cv2.imdecode(file_bytes, 1)
+
+                embedding = get_embedding(image)
+
+                if embedding is not None:
+                    add_user_images(selected_user, embedding)
+
+            st.success(f"Images added to {selected_user}")
+
+    else:
+        st.info("No users registered yet")
+
 elif menu == "Login":
 
-    st.subheader("🔐 Login System")
+    st.subheader("Login System")
 
-    input_mode = st.radio("Choose input method", ["Upload Image", "Camera"])
+    input_mode = st.radio("Choose input method", ["Camera", "Upload Image"])
 
     image = None
 
-    # 📸 CAMERA
     if input_mode == "Camera":
         img_file = st.camera_input("Capture your face")
 
@@ -75,7 +105,6 @@ elif menu == "Login":
             file_bytes = np.asarray(bytearray(img_file.read()), dtype=np.uint8)
             image = cv2.imdecode(file_bytes, 1)
 
-    # 📁 UPLOAD
     else:
         uploaded_file = st.file_uploader(
             "Upload face image", type=["jpg", "jpeg", "png"]
@@ -85,42 +114,35 @@ elif menu == "Login":
             file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
             image = cv2.imdecode(file_bytes, 1)
 
-    # ==================================================
-    # PROCESS LOGIN IMAGE
-    # ==================================================
     if image is not None:
 
-        st.image(image, channels="BGR", caption="Input Image")
+        st.image(image, channels="BGR")
 
-        # 🚫 spoof detection
         if not is_real_face(image):
-            st.error("🚫 Spoof detected! Please use a real face.")
+            st.error("Spoof detected")
             st.stop()
 
         embedding = get_embedding(image)
 
         if embedding is None:
-            st.error("No face detected!")
+            st.error("No face detected")
             st.stop()
 
         if st.button("Login"):
 
-            # 📊 Top matches
-            st.subheader("📊 Top 3 Matches")
-
             top_matches = get_top_matches(embedding)
 
+            st.subheader("Top Matches")
+
             for name, score in top_matches:
-                st.write(f"👤 {name}: {score:.2f}")
+                st.write(name, score)
                 st.progress(float(score))
 
-            # 🔐 authentication
             user, score = authenticate_user(embedding)
 
             if user:
-                st.success(f"Welcome {user} 🎉")
-                st.info(f"Confidence Score: {score:.2f}")
+                st.success(f"Welcome {user}")
                 log_attempt(user, "SUCCESS")
             else:
-                st.error("Access Denied ❌")
+                st.error("Access Denied")
                 log_attempt("UNKNOWN", "FAIL")
