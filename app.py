@@ -13,11 +13,16 @@ from modules.auth import (
 from modules.history import log_attempt
 from modules.database import load_users
 
+# ================= SIDEBAR =================
+st.sidebar.title("🔐 Navigation")
+
+page = st.sidebar.selectbox("Choose Page", ["Login", "Register"])
+
+# ================= TITLE =================
 st.title("DeepFace Biometric Security System")
 
-tab1, tab2 = st.tabs(["Login", "Register"])
-
-with tab1:
+# ================= LOGIN =================
+if page == "Login":
 
     st.subheader("Login System")
 
@@ -74,7 +79,8 @@ with tab1:
                 st.error("Access Denied")
                 log_attempt("UNKNOWN", "FAIL", score)
 
-with tab2:
+# ================= REGISTER =================
+elif page == "Register":
 
     st.subheader("User Registration")
 
@@ -151,6 +157,7 @@ with tab2:
     else:
         st.info("No users available")
 
+# ================= COMMON SECTIONS =================
 st.markdown("---")
 st.subheader("Logs")
 
