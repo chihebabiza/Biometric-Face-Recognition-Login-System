@@ -72,12 +72,14 @@ if page == "Login":
 
             user, score = authenticate_user(embedding)
 
+            safe_score = float(score) if score is not None else 0.0
+
             if user:
                 st.success(f"Welcome {user}")
-                log_attempt(user, "SUCCESS", score)
+                log_attempt(user, "SUCCESS", safe_score)
             else:
                 st.error("Access Denied")
-                log_attempt("UNKNOWN", "FAIL", score)
+                log_attempt("UNKNOWN", "FAIL", safe_score)
 
 # ================= REGISTER =================
 elif page == "Register":
