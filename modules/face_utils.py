@@ -17,10 +17,9 @@ def get_embedding(image):
         return None
 
 
-def is_real_face(image):
-
+def is_real_face(image, threshold=50):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
 
-    return blur_score
+    return blur_score > threshold

@@ -74,7 +74,7 @@ if page == "Login":
 
             safe_score = float(score) if score is not None else 0.0
 
-            if user:
+            if user is not None:
                 st.success(f"Welcome {user}")
                 log_attempt(user, "SUCCESS", safe_score)
             else:
