@@ -35,7 +35,7 @@ def authenticate_user(embedding, threshold=0.5):
     if best_score > threshold:
         return best_user, best_score
 
-    return None, None
+    return None, 0.0
 
 
 def get_top_matches(embedding, top_k=3):
