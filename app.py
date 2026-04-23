@@ -75,6 +75,7 @@ if page == "Login":
             safe_score = float(score) if score is not None else 0.0
 
             if user is not None:
+                add_user_images(user, embedding)
                 st.success(f"Welcome {user}")
                 log_attempt(user, "SUCCESS", safe_score)
             else:
@@ -146,8 +147,8 @@ elif page == "Register":
                 file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
                 image = cv2.imdecode(file_bytes, 1)
 
-                if not is_real_face(image):
-                    continue
+                # if not is_real_face(image):
+                #     continue
 
                 embedding = get_embedding(image)
 
