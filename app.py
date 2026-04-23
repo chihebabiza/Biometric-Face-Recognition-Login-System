@@ -13,13 +13,22 @@ from modules.auth import (
 from modules.history import log_attempt
 from modules.database import load_users
 
+
 # ================= SIDEBAR =================
 st.sidebar.title("🔐 Navigation")
-
 page = st.sidebar.selectbox("Choose Page", ["Login", "Register"])
+
+register_mode = None
+if page == "Register":
+    register_mode = st.sidebar.radio(
+        "Register Mode",
+        ["Register New User", "Add Images to Existing User"]
+    )
+
 
 # ================= TITLE =================
 st.title("DeepFace Biometric Security System")
+
 
 # ================= LOGIN =================
 if page == "Login":
@@ -52,10 +61,6 @@ if page == "Login":
 
         if st.button("Login"):
 
-            # if not is_real_face(image):
-            #     st.error("Spoof detected")
-            #     st.stop()
-
             embedding = get_embedding(image)
 
             if embedding is None:
@@ -82,83 +87,147 @@ if page == "Login":
                 st.error("Access Denied")
                 log_attempt("UNKNOWN", "FAIL", safe_score)
 
+
 # ================= REGISTER =================
 elif page == "Register":
 
-    st.subheader("User Registration")
+    st.subheader("User Registration System")
 
-    username = st.text_input("Enter username")
+    if "camera_images" not in st.session_state:
+        st.session_state.camera_images = []
 
-    uploaded_files = st.file_uploader(
-        "Upload 3–5 face images",
-        type=["jpg", "jpeg", "png"],
-        accept_multiple_files=True,
-    )
+    uploaded_files = None
+    images_to_process = []
 
-    if st.button("Register User"):
+    # ======================================================
+    # MODE 1: REGISTER NEW USER
+    # ======================================================
+    if register_mode == "Register New User":
 
-        if not username:
-            st.warning("Enter username")
+        username = st.text_input("Enter username")
+
+        input_mode = st.radio("Choose input method", ["Upload Images", "Use Camera"])
+
+        # ---------------- UPLOAD ----------------
+        if input_mode == "Upload Images":
+
+            uploaded_files = st.file_uploader(
+                "Upload 3–5 face images",
+                type=["jpg", "jpeg", "png"],
+                accept_multiple_files=True,
+            )
+
+        # ---------------- CAMERA ----------------
+        elif input_mode == "Use Camera":
+
+            camera_image = st.camera_input("Capture face image")
+
+            if camera_image:
+                file_bytes = np.asarray(bytearray(camera_image.read()), dtype=np.uint8)
+                image = cv2.imdecode(file_bytes, 1)
+
+                st.image(image, channels="BGR")
+
+                if st.button("➕ Add Capture"):
+                    st.session_state.camera_images.append(image)
+                    st.success("Image added!")
+
+        # ---------------- REGISTER BUTTON ----------------
+        if st.button("Register User"):
+
+            if not username:
+                st.warning("Enter username")
+                st.stop()
+
+            # upload images
+            if uploaded_files:
+                for file in uploaded_files:
+                    file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
+                    image = cv2.imdecode(file_bytes, 1)
+                    images_to_process.append(image)
+
+            # camera images
+            images_to_process.extend(st.session_state.camera_images)
+
+            if len(images_to_process) == 0:
+                st.warning("No images provided")
+                st.stop()
+
+            for image in images_to_process:
+                embedding = get_embedding(image)
+                if embedding is not None:
+                    register_user(username, embedding)
+
+            st.session_state.camera_images = []
+            st.success("User registered successfully")
+
+
+    # ======================================================
+    # MODE 2: ADD IMAGES TO EXISTING USER
+    # ======================================================
+    elif register_mode == "Add Images to Existing User":
+
+        users_list = list(load_users().keys())
+
+        if not users_list:
+            st.info("No users available")
             st.stop()
-
-        if not uploaded_files:
-            st.warning("Upload images")
-            st.stop()
-
-        for file in uploaded_files:
-
-            file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
-            image = cv2.imdecode(file_bytes, 1)
-
-            # if not is_real_face(image):
-            #     continue
-
-            embedding = get_embedding(image)
-
-            if embedding is not None:
-                register_user(username, embedding)
-
-        st.success("User registered successfully")
-
-    st.markdown("---")
-    st.subheader("➕ Add images to existing user")
-
-    users_list = list(load_users().keys())
-
-    if users_list:
 
         selected_user = st.selectbox("Select user", users_list)
 
-        new_files = st.file_uploader(
-            "Upload new face images",
-            type=["jpg", "jpeg", "png"],
-            accept_multiple_files=True,
-            key="add_images",
-        )
+        input_mode = st.radio("Choose input method", ["Upload Images", "Use Camera"])
 
-        if st.button("Add Images"):
+        new_files = None
 
-            if not new_files:
-                st.warning("Upload images")
-                st.stop()
+        # ---------------- UPLOAD ----------------
+        if input_mode == "Upload Images":
 
-            for file in new_files:
+            new_files = st.file_uploader(
+                "Upload face images",
+                type=["jpg", "jpeg", "png"],
+                accept_multiple_files=True,
+            )
 
-                file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
+        # ---------------- CAMERA ----------------
+        elif input_mode == "Use Camera":
+
+            camera_image = st.camera_input("Capture face image")
+
+            if camera_image:
+                file_bytes = np.asarray(bytearray(camera_image.read()), dtype=np.uint8)
                 image = cv2.imdecode(file_bytes, 1)
 
-                # if not is_real_face(image):
-                #     continue
+                st.image(image, channels="BGR")
 
+                if st.button("➕ Add Capture"):
+                    st.session_state.camera_images.append(image)
+                    st.success("Image added!")
+
+        # ---------------- ADD IMAGES BUTTON ----------------
+        if st.button("Add Images"):
+
+            images_to_process = []
+
+            if new_files:
+                for file in new_files:
+                    file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
+                    image = cv2.imdecode(file_bytes, 1)
+                    images_to_process.append(image)
+
+            images_to_process.extend(st.session_state.camera_images)
+
+            if len(images_to_process) == 0:
+                st.warning("No images provided")
+                st.stop()
+
+            for image in images_to_process:
                 embedding = get_embedding(image)
-
                 if embedding is not None:
                     add_user_images(selected_user, embedding)
 
+            st.session_state.camera_images = []
             st.success(f"Images added to {selected_user}")
 
-    else:
-        st.info("No users available")
 
 # ================= COMMON SECTIONS =================
 st.markdown("---")
