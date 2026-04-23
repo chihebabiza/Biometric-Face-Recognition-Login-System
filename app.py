@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 import pandas as pd
 
-from modules.face_utils import get_embedding, is_real_face
+from modules.face_utils import get_embedding
 from modules.auth import (
     register_user,
     authenticate_user,
@@ -52,9 +52,9 @@ if page == "Login":
 
         if st.button("Login"):
 
-            if not is_real_face(image):
-                st.error("Spoof detected")
-                st.stop()
+            # if not is_real_face(image):
+            #     st.error("Spoof detected")
+            #     st.stop()
 
             embedding = get_embedding(image)
 
@@ -109,8 +109,8 @@ elif page == "Register":
             file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
             image = cv2.imdecode(file_bytes, 1)
 
-            if not is_real_face(image):
-                continue
+            # if not is_real_face(image):
+            #     continue
 
             embedding = get_embedding(image)
 
