@@ -69,11 +69,11 @@ if page == "Login":
 
             top_matches = get_top_matches(embedding)
 
-            st.subheader("Top Matches")
+            # st.subheader("Top Matches")
 
-            for name, score in top_matches:
-                st.write(name, score)
-                st.progress(float(score))
+            # for name, score in top_matches:
+            #     st.write(name, score)
+            #     st.progress(float(score))
 
             user, score = authenticate_user(embedding)
 
@@ -81,6 +81,7 @@ if page == "Login":
 
             if user is not None:
                 add_user_images(user, embedding)
+                st.write(user, score)
                 st.success(f"Welcome {user}")
                 log_attempt(user, "SUCCESS", safe_score)
             else:
